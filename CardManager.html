@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CardManager</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.8.0/umd/Recharts.js"></script>
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',sans-serif;background:#0f0f1a;color:#e2e8f0;min-height:100vh}
+    ::-webkit-scrollbar{width:6px;height:6px}
+    ::-webkit-scrollbar-track{background:#1a1a2e}
+    ::-webkit-scrollbar-thumb{background:#4a4a6a;border-radius:3px}
+    .app{display:flex;flex-direction:column;min-height:100vh}
+    .header{background:linear-gradient(135deg,#1a1a3e 0%,#0d0d2b 100%);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2a2a4a;position:sticky;top:0;z-index:100;box-shadow:0 2px 20px rgba(0,0,0,0.5)}
+    .logo{font-size:20px;font-weight:800;background:linear-gradient(90deg,#818cf8,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.5px}
+    .nav{display:flex;gap:4px}
+    .nav-btn{padding:6px 14px;border-radius:20px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.2s}
+    .nav-btn.active{background:linear-gradient(135deg,#818cf8,#c084fc);color:#fff}
+    .nav-btn:not(.active){background:transparent;color:#94a3b8;border:1px solid #2a2a4a}
+    .nav-btn:not(.active):hover{background:#2a2a4a;color:#e2e8f0}
+    .main{flex:1;padding:16px;max-width:900px;margin:0 auto;width:100%}
+    .month-nav{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:20px}
+    .month-nav button{background:#2a2a4a;border:none;color:#818cf8;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+    .month-nav button:hover{background:#818cf8;color:#fff}
+    .month-title{font-size:22px;font-weight:700;color:#e2e8f0;min-width:160px;text-align:center}
+    /* Stat cards */
+    .cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+    .stat-card{background:linear-gradient(135deg,#1e1e3a,#16162e);border:1px solid #2a2a4a;border-radius:16px;padding:16px;position:relative;overflow:hidden}
+    .stat-card::before{content:'';position:absolute;top:-20px;right:-20px;width:80px;height:80px;background:rgba(129,140,248,0.1);border-radius:50%}
+    .stat-label{font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
+    .stat-value{font-size:24px;font-weight:800;color:#e2e8f0}
+    .stat-sub{font-size:12px;margin-top:4px}
+    .stat-sub2{font-size:11px;margin-top:2px;color:#64748b}
+    .stat-up{color:#34d399}
+    .stat-down{color:#f87171}
+    /* Billing groups */
+    .billing-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+    .billing-group{background:#1e1e3a;border:1px solid #2a2a4a;border-radius:12px;padding:14px}
+    .group-label{font-size:11px;color:#64748b;font-weight:700;margin-bottom:6px;text-transform:uppercase}
+    .group-amount{font-size:20px;font-weight:800;color:#818cf8}
+    .group-cards{font-size:11px;color:#64748b;margin-top:4px}
+    /* Charts */
+    .charts-row{display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:20px}
+    @media(max-width:640px){.charts-row{grid-template-columns:1fr}}
+    .chart-card{background:#1e1e3a;border:1px solid #2a2a4a;border-radius:16px;padding:16px;margin-bottom:20px}
+    .chart-title{font-size:14px;font-weight:700;color:#94a3b8;margin-bottom:12px}
+    /* Loan summary card */
+    .loan-summary-card{background:linear-gradient(135deg,#1a2e1a,#162016);border:1px solid #2a4a2a;border-radius:16px;padding:16px;margin-bottom:20px}
+    .loan-summary-title{font-size:13px;color:#4ade80;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .loan-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+    .loan-summary-item{background:rgba(74,222,128,0.07);border:1px solid rgba(74,222,128,0.15);border-radius:10px;padding:10px 12px}
+    .loan-summary-item .lsi-label{font-size:10px;color:#64748b;font-weight:600}
+    .loan-summary-item .lsi-value{font-size:16px;font-weight:800;color:#4ade80;margin-top:2px}
+    .loan-summary-item .lsi-sub{font-size:10px;color:#64748b;margin-top:2px}
+    /* Card Input - Hypercard */
+    .card-tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:8px;margin-bottom:16px;-webkit-overflow-scrolling:touch}
+    .card-tabs::-webkit-scrollbar{height:4px}
+    .card-tab{flex-shrink:0;padding:6px 14px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:700;transition:all 0.2s;white-space:nowrap}
+    .card-tab.active{color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
+    .card-tab:not(.active){background:#2a2a4a;color:#94a3b8}
+    .card-tab:not(.active):hover{opacity:0.8}
+    .hypercard{border-radius:20px;padding:20px;margin-bottom:20px;position:relative;overflow:hidden;min-height:180px;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+    .hypercard::before{content:'';position:absolute;top:-30%;right:-10%;width:60%;height:160%;background:rgba(255,255,255,0.05);border-radius:50%;transform:rotate(-20deg)}
+    .hypercard::after{content:'';position:absolute;bottom:-20%;left:-5%;width:50%;height:100%;background:rgba(255,255,255,0.03);border-radius:50%}
+    .hc-top{display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1}
+    .hc-chip{width:40px;height:28px;background:linear-gradient(135deg,#d4a843,#f5d882);border-radius:6px;border:1px solid rgba(255,255,255,0.3)}
+    .hc-name{font-size:20px;font-weight:900;color:rgba(255,255,255,0.95);letter-spacing:1px;position:relative;z-index:1;margin:20px 0 8px;text-shadow:0 2px 8px rgba(0,0,0,0.3)}
+    .hc-due{font-size:13px;color:rgba(255,255,255,0.7);position:relative;z-index:1}
+    .hc-total{font-size:24px;font-weight:800;color:#fff;position:relative;z-index:1;text-shadow:0 2px 8px rgba(0,0,0,0.3)}
+    /* Member inputs */
+    .member-inputs{display:flex;flex-direction:column;gap:10px}
+    .member-row{background:#1e1e3a;border:1px solid #2a2a4a;border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:80px 1fr 1fr;gap:10px;align-items:center}
+    @media(max-width:480px){.member-row{grid-template-columns:70px 1fr;grid-template-rows:auto auto}}
+    .member-name{font-size:13px;font-weight:700;color:#c4b5fd}
+    .input-group{display:flex;flex-direction:column;gap:3px}
+    .input-label{font-size:10px;color:#64748b;font-weight:600}
+    .amount-input,.note-input{background:#0f0f1a;border:1px solid #2a2a4a;color:#e2e8f0;border-radius:8px;padding:6px 10px;font-size:14px;width:100%;transition:border-color 0.2s}
+    .amount-input:focus,.note-input:focus{outline:none;border-color:#818cf8}
+    .amount-input{text-align:right;font-weight:700}
+    .note-input{font-size:12px}
+    /* Settings */
+    .settings-section{background:#1e1e3a;border:1px solid #2a2a4a;border-radius:16px;padding:16px;margin-bottom:16px}
+    .settings-title{font-size:15px;font-weight:700;color:#94a3b8;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    .settings-list{display:flex;flex-direction:column;gap:8px}
+    .settings-item{background:#0f0f1a;border:1px solid #2a2a4a;border-radius:10px;padding:10px 12px}
+    .settings-item-row{display:flex;align-items:center;gap:10px}
+    .settings-item input[type=text]{background:transparent;border:none;color:#e2e8f0;font-size:14px;flex:1;outline:none;min-width:0}
+    .settings-item input[type=number]{background:transparent;border:none;color:#818cf8;font-size:14px;width:50px;outline:none;text-align:center}
+    .color-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+    .btn{padding:7px 14px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.2s}
+    .btn-sm{padding:5px 10px;font-size:12px}
+    .btn-primary{background:linear-gradient(135deg,#818cf8,#c084fc);color:#fff}
+    .btn-primary:hover{opacity:0.85}
+    .btn-danger{background:#7f1d1d;color:#fca5a5}
+    .btn-danger:hover{background:#991b1b}
+    .btn-ghost{background:#2a2a4a;color:#94a3b8}
+    .btn-ghost:hover{background:#3a3a5a;color:#e2e8f0}
+    .btn-green{background:linear-gradient(135deg,#166534,#15803d);color:#4ade80}
+    .btn-green:hover{opacity:0.85}
+    .add-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .add-form input{background:#0f0f1a;border:1px solid #2a2a4a;color:#e2e8f0;border-radius:8px;padding:7px 10px;font-size:13px;flex:1;min-width:80px;outline:none}
+    .add-form input:focus{border-color:#818cf8}
+    .member-checks{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid #2a2a4a}
+    .member-check-label{display:flex;align-items:center;gap:5px;font-size:12px;color:#94a3b8;cursor:pointer;user-select:none}
+    .member-check-label input[type=checkbox]{accent-color:#818cf8;width:14px;height:14px;cursor:pointer}
+    .csv-row{display:flex;gap:8px;flex-wrap:wrap}
+    /* ⑤ Drag handle */
+    .drag-handle{cursor:grab;color:#4a4a6a;font-size:18px;line-height:1;padding:0 4px;user-select:none;flex-shrink:0}
+    .drag-handle:active{cursor:grabbing}
+    .drag-item{transition:opacity 0.15s}
+    .drag-item.dragging{opacity:0.4}
+    .drag-item.drag-over{border-top:2px solid #818cf8}
+    /* ⑥ Loan settings */
+    .loan-item{background:#0f0f1a;border:1px solid #2a4a2a;border-radius:12px;padding:12px;margin-bottom:8px}
+    .loan-item-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+    .loan-item-name{font-size:14px;font-weight:700;color:#4ade80;flex:1}
+    .loan-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:8px}
+    .loan-field{display:flex;flex-direction:column;gap:3px}
+    .loan-field label{font-size:10px;color:#64748b;font-weight:600}
+    .loan-field input{background:#1e1e3a;border:1px solid #2a2a4a;color:#e2e8f0;border-radius:6px;padding:5px 8px;font-size:13px;outline:none;width:100%}
+    .loan-field input:focus{border-color:#4ade80}
+    .loan-bonus-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;border-top:1px solid #2a2a4a;padding-top:8px;margin-top:4px}
+    .loan-bonus-group{background:#1a2a1a;border:1px solid #2a3a2a;border-radius:8px;padding:8px}
+    .loan-bonus-label{font-size:10px;color:#4ade80;font-weight:700;margin-bottom:6px}
+    .loan-bonus-inputs{display:flex;gap:6px}
+    .loan-bonus-inputs input{background:#0f1a0f;border:1px solid #2a3a2a;color:#e2e8f0;border-radius:6px;padding:5px 8px;font-size:12px;outline:none;flex:1;min-width:0}
+    .loan-bonus-inputs input:focus{border-color:#4ade80}
+    .add-loan-btn{margin-top:10px}
+    /* Modal */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+    .modal{background:#1e1e3a;border:1px solid #2a2a4a;border-radius:20px;padding:24px;max-width:400px;width:100%}
+    .modal h3{font-size:16px;font-weight:700;margin-bottom:16px}
+    .modal textarea{background:#0f0f1a;border:1px solid #2a2a4a;color:#e2e8f0;border-radius:8px;padding:10px;font-size:12px;width:100%;height:200px;resize:vertical;outline:none;font-family:monospace}
+    .modal-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+    /* Tooltip */
+    .custom-tooltip{background:#1e1e3a;border:1px solid #2a2a4a;border-radius:10px;padding:10px 14px;font-size:12px}
+    .custom-tooltip .label{color:#94a3b8;font-weight:600;margin-bottom:4px}
+    .pie-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .pie-legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#94a3b8}
+    .pie-legend-dot{width:10px;height:10px;border-radius:50%}
+    .yoy-table{width:100%;border-collapse:collapse;font-size:12px}
+    .yoy-table th{color:#64748b;font-weight:600;padding:6px 8px;text-align:right;border-bottom:1px solid #2a2a4a}
+    .yoy-table th:first-child{text-align:left}
+    .yoy-table td{padding:5px 8px;text-align:right;border-bottom:1px solid #1a1a2e;color:#e2e8f0}
+    .yoy-table td:first-child{text-align:left;color:#94a3b8}
+    .yoy-pos{color:#34d399}
+    .yoy-neg{color:#f87171}
+    @media(max-width:480px){
+      .month-title{font-size:18px}
+      .stat-value{font-size:20px}
+      .cards-grid{grid-template-columns:1fr 1fr}
+      .loan-bonus-row{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useMemo, useRef } = React;
+const { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = Recharts;
+
+// ⑤ 初期カードは引落日順にソート
+const INITIAL_CARDS = [
+  { id:'aeon',     name:'イオン',         dueDay:4,  color:'#D52027' },
+  { id:'uc',       name:'UC',            dueDay:5,  color:'#003087' },
+  { id:'toyota',   name:'トヨタTS',       dueDay:17, color:'#EB0A1E' },
+  { id:'amazon',   name:'Amazon',        dueDay:26, color:'#FF9900' },
+  { id:'rakuten',  name:'楽天',          dueDay:27, color:'#BF0000' },
+  { id:'paypay',   name:'PayPay',        dueDay:27, color:'#FF0033' },
+  { id:'kawasaki', name:'Kawasaki KAZA', dueDay:27, color:'#009A44' },
+];
+const INITIAL_MEMBERS = [
+  { id:'self',  name:'本人' },
+  { id:'kyoko', name:'杏子' },
+  { id:'yuta',  name:'勇太' },
+  { id:'yuzu',  name:'柚'  },
+];
+// ⑥ ローン初期データ（空）
+const INITIAL_LOANS = [];
+
+const LOAN_COLOR = '#4ade80';
+const LOAN_BONUS_COLOR = '#86efac';
+const COLORS = ['#818cf8','#c084fc','#34d399','#fb923c','#38bdf8','#f472b6','#a3e635','#fbbf24','#e879f9','#4ade80'];
+
+function getBillingGroup(day){
+  if(day<=10) return 0;
+  if(day<=20) return 1;
+  return 2;
+}
+const GROUP_LABELS = ['前半（1〜10日）','中盤（11〜20日）','後半（21〜31日）'];
+
+function toYM(y,m){ return `${y}-${String(m).padStart(2,'0')}`; }
+function fmtNum(n){ return Number(n||0).toLocaleString('ja-JP'); }
+
+function prevMonth(ym){
+  const [y,m]=ym.split('-').map(Number);
+  return m===1?toYM(y-1,12):toYM(y,m-1);
+}
+function nextMonth(ym){
+  const [y,m]=ym.split('-').map(Number);
+  return m===12?toYM(y+1,1):toYM(y,m+1);
+}
+function prevYear(ym){
+  const [y,m]=ym.split('-').map(Number);
+  return toYM(y-1,m);
+}
+function ymLabel(ym){
+  const [y,m]=ym.split('-').map(Number);
+  return `${y}年${m}月`;
+}
+function ymMonth(ym){ return Number(ym.split('-')[1]); }
+
+// カード合計
+function cardTotal(payments, ym, cardId, members){
+  let t=0;
+  members.forEach(mb=>{ t+=Number(payments?.[ym]?.[cardId]?.[mb.id]?.amount||0); });
+  return t;
+}
+function getCardMonthTotal(payments, ym, cards, members){
+  let t=0;
+  cards.forEach(c=>{ t+=cardTotal(payments,ym,c.id,members); });
+  return t;
+}
+
+// ローン支払回数・計算残高
+function calcPaidMonths(startYM, asOfYM){
+  if(!startYM||!asOfYM) return 0;
+  const [sy,sm]=startYM.split('-').map(Number);
+  const [ay,am]=asOfYM.split('-').map(Number);
+  if(isNaN(sy)||isNaN(sm)||isNaN(ay)||isNaN(am)) return 0;
+  return Math.max(0,(ay-sy)*12+(am-sm)+1);
+}
+// 完済予定年月 = 開始年月 + (支払回数 - 1) ヶ月
+function calcEndYM(startYM, totalPayments){
+  if(!startYM||!totalPayments||Number(totalPayments)<=0) return '';
+  const [sy,sm]=startYM.split('-').map(Number);
+  if(isNaN(sy)||isNaN(sm)) return '';
+  const total=Number(totalPayments);
+  const endMonth=sm+(total-1);
+  const y=sy+Math.floor((endMonth-1)/12);
+  const m=((endMonth-1)%12)+1;
+  return toYM(y,m);
+}
+function loanEndYM(loan){
+  return calcEndYM(loan.startYM, loan.totalPayments);
+}
+function calcLoanBalance(loan, asOfYM){
+  const total=Number(loan.totalAmount||0);
+  const monthly=Number(loan.monthlyPayment||0);
+  if(!total||!monthly||!loan.startYM) return Number(loan.balance||0);
+  const end=loanEndYM(loan);
+  const ref=end&&asOfYM>end?end:asOfYM;
+  const paid=calcPaidMonths(loan.startYM, ref);
+  return Math.max(0, total - monthly*paid);
+}
+
+// ⑦ ローン合計
+function getLoanMonthly(loans, asOfYM){
+  return loans.reduce((s,l)=>{
+    const end=loanEndYM(l);
+    if(end && asOfYM > end) return s;
+    if(l.startYM && asOfYM < l.startYM) return s;
+    return s+Number(l.monthlyPayment||0);
+  },0);
+}
+function getLoanBonusForYM(loans, ym){
+  const mo = ymMonth(ym);
+  let t=0;
+  loans.forEach(l=>{
+    const end=loanEndYM(l);
+    if(end && ym > end) return;
+    if(l.startYM && ym < l.startYM) return;
+    if(Number(l.bonusSummerMonth||0)===mo) t+=Number(l.bonusSummerAmount||0);
+    if(Number(l.bonusWinterMonth||0)===mo) t+=Number(l.bonusWinterAmount||0);
+  });
+  return t;
+}
+function getMonthTotal(payments, ym, cards, members, loans){
+  return getCardMonthTotal(payments,ym,cards,members)
+       + getLoanMonthly(loans, ym)
+       + getLoanBonusForYM(loans,ym);
+}
+
+// ② カードのアクティブメンバー
+function getActiveMembers(members, cardMembers, cardId){
+  const e=cardMembers[cardId];
+  if(!e||e.length===0) return members;
+  return members.filter(m=>e.includes(m.id));
+}
+
+function useLocalStorage(key, init){
+  const [val,setVal]=useState(()=>{
+    try{ const s=localStorage.getItem(key); return s?JSON.parse(s):init; }
+    catch{ return init; }
+  });
+  useEffect(()=>{ try{ localStorage.setItem(key,JSON.stringify(val)); }catch{} },[key,val]);
+  return [val,setVal];
+}
+
+// Safari対応 年月セレクター（内部stateで年・月を独立管理）
+function MonthPicker({value, onChange}){
+  const curYear = new Date().getFullYear();
+  const years  = Array.from({length:21},(_,i)=>String(curYear-5+i));
+  const months = Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
+  const initParts = (value||'').split('-');
+  const [localY, setLocalY] = useState(initParts[0]||'');
+  const [localM, setLocalM] = useState(initParts[1]||'');
+  useEffect(()=>{
+    const p=(value||'').split('-');
+    setLocalY(p[0]||''); setLocalM(p[1]||'');
+  },[value]);
+  function handleY(y){
+    setLocalY(y);
+    if(y && localM) onChange(`${y}-${localM}`);
+    else if(!y){ setLocalM(''); onChange(''); }
+  }
+  function handleM(m){
+    setLocalM(m);
+    if(localY && m) onChange(`${localY}-${m}`);
+  }
+  const sel={background:'#1e1e3a',border:'1px solid #2a2a4a',color:'#e2e8f0',borderRadius:6,padding:'5px 6px',fontSize:12,outline:'none',flex:1,minWidth:0};
+  return(
+    <div style={{display:'flex',gap:4}}>
+      <select value={localY} onChange={e=>handleY(e.target.value)} style={sel}>
+        <option value="">年</option>
+        {years.map(y=><option key={y} value={y}>{y}年</option>)}
+      </select>
+      <select value={localM} onChange={e=>handleM(e.target.value)} style={sel}>
+        <option value="">月</option>
+        {months.map(m=><option key={m} value={m}>{Number(m)}月</option>)}
+      </select>
+    </div>
+  );
+}
+
+// ========== Google Sheets 連携 ==========
+const GSCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+const GDISCOVERY = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
+let _gapiReady = false;
+let _tokenClient = null;
+
+async function gapiLoad(){
+  if(_gapiReady) return true;
+  if(typeof gapi === 'undefined') return false;
+  return new Promise(res=>{
+    gapi.load('client',async()=>{
+      try{
+        await gapi.client.init({discoveryDocs:[GDISCOVERY]});
+        _gapiReady=true; res(true);
+      }catch{ res(false); }
+    });
+  });
+}
+function initTokenClient(clientId, callback){
+  if(typeof google==='undefined') return null;
+  _tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: clientId, scope: GSCOPE, callback
+  });
+  return _tokenClient;
+}
+function gSignOut(){
+  try{ const t=gapi.client.getToken(); if(t) google.accounts.oauth2.revoke(t.access_token); gapi.client.setToken(null); }catch{}
+}
+function parseSheet(values){
+  if(!values||values.length<2) return [];
+  const h=values[0];
+  return values.slice(1).map(row=>Object.fromEntries(h.map((k,i)=>[k,row[i]||''])));
+}
+function serializeSheet(headers, rows){
+  return [headers, ...rows.map(r=>headers.map(h=>String(r[h]??'')))];
+}
+async function gRead(sid, range){
+  const r=await gapi.client.sheets.spreadsheets.values.get({spreadsheetId:sid,range});
+  return r.result.values||[];
+}
+async function gWrite(sid, range, values){
+  await gapi.client.sheets.spreadsheets.values.update({
+    spreadsheetId:sid, range, valueInputOption:'RAW', resource:{values}
+  });
+}
+async function gClear(sid, range){
+  await gapi.client.sheets.spreadsheets.values.clear({spreadsheetId:sid,range});
+}
+async function ensureSheets(sid){
+  const needed=['payments','cards','members','cardMembers','loans'];
+  const info=await gapi.client.sheets.spreadsheets.get({spreadsheetId:sid});
+  const exist=info.result.sheets.map(s=>s.properties.title);
+  const toAdd=needed.filter(n=>!exist.includes(n));
+  if(toAdd.length>0){
+    await gapi.client.sheets.spreadsheets.batchUpdate({
+      spreadsheetId:sid,
+      resource:{requests:toAdd.map(title=>({addSheet:{properties:{title}}}))}
+    });
+  }
+}
+async function uploadToSheets(sid,{payments,cards,members,cardMembers,loans}){
+  await ensureSheets(sid);
+  // payments
+  const payRows=[];
+  Object.entries(payments).forEach(([ym,cm])=>
+    Object.entries(cm).forEach(([cid,mm])=>
+      Object.entries(mm).forEach(([mid,{amount,note}])=>
+        payRows.push({ym,cardId:cid,memberId:mid,amount:amount||0,note:note||''})
+      )
+    )
+  );
+  await gClear(sid,'payments!A:Z');
+  await gWrite(sid,'payments!A1',serializeSheet(['ym','cardId','memberId','amount','note'],payRows));
+  // cards
+  await gClear(sid,'cards!A:Z');
+  await gWrite(sid,'cards!A1',serializeSheet(['id','name','dueDay','color'],cards));
+  // members
+  await gClear(sid,'members!A:Z');
+  await gWrite(sid,'members!A1',serializeSheet(['id','name'],members));
+  // cardMembers
+  const cmRows=Object.entries(cardMembers).map(([cid,mids])=>({cardId:cid,memberIds:(mids||[]).join(',')}));
+  await gClear(sid,'cardMembers!A:Z');
+  await gWrite(sid,'cardMembers!A1',serializeSheet(['cardId','memberIds'],cmRows));
+  // loans
+  const lf=['id','name','totalAmount','balance','monthlyPayment','interestRate','totalPayments','startYM','bonusSummerAmount','bonusSummerMonth','bonusWinterAmount','bonusWinterMonth'];
+  await gClear(sid,'loans!A:Z');
+  await gWrite(sid,'loans!A1',serializeSheet(lf,loans));
+}
+async function downloadFromSheets(sid){
+  await ensureSheets(sid);
+  // payments
+  const pv=await gRead(sid,'payments!A:E');
+  const payments={};
+  parseSheet(pv).forEach(r=>{
+    if(!r.ym||!r.cardId||!r.memberId) return;
+    if(!payments[r.ym]) payments[r.ym]={};
+    if(!payments[r.ym][r.cardId]) payments[r.ym][r.cardId]={};
+    payments[r.ym][r.cardId][r.memberId]={amount:Number(r.amount)||0,note:r.note||''};
+  });
+  // cards
+  const cards=parseSheet(await gRead(sid,'cards!A:D')).map(r=>({...r,dueDay:Number(r.dueDay)||1}));
+  // members
+  const members=parseSheet(await gRead(sid,'members!A:B'));
+  // cardMembers
+  const cardMembers={};
+  parseSheet(await gRead(sid,'cardMembers!A:B')).forEach(r=>{
+    cardMembers[r.cardId]=(r.memberIds||'').split(',').filter(Boolean);
+  });
+  // loans
+  const loans=parseSheet(await gRead(sid,'loans!A:L'));
+  return {payments,cards,members,cardMembers,loans};
+}
+// =========================================
+
+// ① カンマ付き金額入力
+function AmountInput({value,onChange,className,...props}){
+  const [focused,setFocused]=useState(false);
+  const dv=focused?(value===0||value===''?'':String(value)):(value?fmtNum(value):'');
+  return(
+    <input
+      className={className||'amount-input'}
+      type="text" inputMode="numeric" placeholder="0"
+      value={dv}
+      onFocus={()=>setFocused(true)}
+      onBlur={()=>setFocused(false)}
+      onChange={e=>{
+        const raw=e.target.value.replace(/,/g,'').replace(/[^0-9]/g,'');
+        onChange(raw===''?'':Number(raw));
+      }}
+      {...props}
+    />
+  );
+}
+
+function CustomTooltip({active,payload,label}){
+  if(!active||!payload?.length) return null;
+  return(
+    <div className="custom-tooltip">
+      <div className="label">{label}</div>
+      {payload.map((p,i)=>(
+        <div key={i} style={{color:p.color||'#818cf8',fontWeight:700,fontSize:13}}>
+          {p.name}: ¥{fmtNum(p.value)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ⑦ Dashboard（ローン統合）
+function Dashboard({payments,cards,members,loans,currentYM}){
+  const cardTotal_this  = useMemo(()=>getCardMonthTotal(payments,currentYM,cards,members),[payments,currentYM,cards,members]);
+  const loanMonthly     = useMemo(()=>getLoanMonthly(loans,currentYM),[loans,currentYM]);
+  const loanBonus       = useMemo(()=>getLoanBonusForYM(loans,currentYM),[loans,currentYM]);
+  const thisTotal       = cardTotal_this + loanMonthly + loanBonus;
+
+  const prevYM   = prevMonth(currentYM);
+  const lyYM     = prevYear(currentYM);
+  const prevTotal= useMemo(()=>getMonthTotal(payments,prevYM,cards,members,loans),[payments,prevYM,cards,members,loans]);
+  const lyTotal  = useMemo(()=>getMonthTotal(payments,lyYM,cards,members,loans),[payments,lyYM,cards,members,loans]);
+  const diff=thisTotal-prevTotal, lyDiff=thisTotal-lyTotal;
+
+  // 引落グループ（カードのみ）
+  const groups=useMemo(()=>{
+    const g=[0,0,0]; const gCards=[[],[],[]];
+    cards.forEach(c=>{
+      const idx=getBillingGroup(c.dueDay);
+      const t=cardTotal(payments,currentYM,c.id,members);
+      g[idx]+=t;
+      if(t>0) gCards[idx].push(c.name);
+    });
+    // ローン月額を前半グループへ追加（一般的に月初引落）
+    if(loanMonthly>0){ g[0]+=loanMonthly; gCards[0].push('ローン'); }
+    if(loanBonus>0)  { g[0]+=loanBonus;   gCards[0].push('ローン(ボーナス)'); }
+    return g.map((amt,i)=>({label:GROUP_LABELS[i],amt,cards:gCards[i]}));
+  },[payments,currentYM,cards,members,loanMonthly,loanBonus]);
+
+  // 円グラフ（カード＋ローン）
+  const pieData=useMemo(()=>{
+    const d=cards.map(c=>({name:c.name,value:cardTotal(payments,currentYM,c.id,members),color:c.color})).filter(x=>x.value>0);
+    if(loanMonthly>0) d.push({name:'ローン(月額)',value:loanMonthly,color:LOAN_COLOR});
+    if(loanBonus>0)   d.push({name:'ローン(ボーナス)',value:loanBonus,color:LOAN_BONUS_COLOR});
+    return d;
+  },[payments,currentYM,cards,members,loanMonthly,loanBonus]);
+
+  // 折れ線グラフ（12ヶ月、カード＋ローン込み）
+  const lineData=useMemo(()=>{
+    const months=[];
+    for(let i=11;i>=0;i--){
+      let ym=currentYM; for(let j=0;j<i;j++) ym=prevMonth(ym);
+      const mo=ymMonth(ym);
+      months.push({
+        ym,label:`${mo}月`,
+        カード: getCardMonthTotal(payments,ym,cards,members),
+        ローン: getLoanMonthly(loans,ym)+getLoanBonusForYM(loans,ym),
+      });
+    }
+    return months;
+  },[payments,currentYM,cards,members,loans]);
+
+  // 前年同月比（カード別＋ローン）
+  const yoyRows=useMemo(()=>{
+    const rows=cards.map(c=>({
+      name:c.name, color:c.color,
+      this:cardTotal(payments,currentYM,c.id,members),
+      ly:cardTotal(payments,lyYM,c.id,members),
+    }));
+    if(loanMonthly>0||loanBonus>0){
+      rows.push({name:'ローン合計',color:LOAN_COLOR,this:loanMonthly+loanBonus,ly:loanMonthly+getLoanBonusForYM(loans,lyYM)});
+    }
+    return rows;
+  },[payments,currentYM,lyYM,cards,members,loans,loanMonthly,loanBonus]);
+
+  return(
+    <div>
+      {/* 統計カード */}
+      <div className="cards-grid">
+        <div className="stat-card">
+          <div className="stat-label">今月の総支払</div>
+          <div className="stat-value">¥{fmtNum(thisTotal)}</div>
+          <div className={`stat-sub ${diff<=0?'stat-up':'stat-down'}`}>
+            {diff===0?'前月同額':diff>0?`前月比 +¥${fmtNum(diff)}`:`前月比 -¥${fmtNum(-diff)}`}
+          </div>
+          {(loanMonthly>0||loanBonus>0)&&(
+            <div className="stat-sub2">カード ¥{fmtNum(cardTotal_this)} / ローン ¥{fmtNum(loanMonthly+loanBonus)}</div>
+          )}
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">前月</div>
+          <div className="stat-value">¥{fmtNum(prevTotal)}</div>
+          <div className="stat-sub" style={{color:'#64748b'}}>{ymLabel(prevYM)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">前年同月</div>
+          <div className="stat-value">¥{fmtNum(lyTotal)}</div>
+          <div className={`stat-sub ${lyDiff<=0?'stat-up':'stat-down'}`}>
+            {lyDiff===0?'同額':lyDiff>0?`+¥${fmtNum(lyDiff)}`:`-¥${fmtNum(-lyDiff)}`}
+          </div>
+        </div>
+      </div>
+
+      {/* ⑦ ローンサマリー */}
+      {loans.length>0&&(
+        <div className="loan-summary-card">
+          <div className="loan-summary-title">🏦 ローン状況</div>
+          <div className="loan-summary-grid">
+            <div className="loan-summary-item">
+              <div className="lsi-label">月額合計</div>
+              <div className="lsi-value">¥{fmtNum(loanMonthly)}</div>
+              <div className="lsi-sub">{loans.length}件</div>
+            </div>
+            {loanBonus>0&&(
+              <div className="loan-summary-item">
+                <div className="lsi-label">今月ボーナス払い</div>
+                <div className="lsi-value">¥{fmtNum(loanBonus)}</div>
+              </div>
+            )}
+            <div className="loan-summary-item">
+              <div className="lsi-label">残高合計</div>
+              <div className="lsi-value">¥{fmtNum(loans.reduce((s,l)=>s+calcLoanBalance(l,currentYM),0))}</div>
+            </div>
+            {loans.filter(l=>{ const e=loanEndYM(l); return !(e&&currentYM>e); }).map(l=>{
+              const calcBal=calcLoanBalance(l,currentYM);
+              const paid=calcPaidMonths(l.startYM,currentYM);
+              return(
+                <div className="loan-summary-item" key={l.id}>
+                  <div className="lsi-label">{l.name}</div>
+                  <div className="lsi-value" style={{fontSize:14}}>¥{fmtNum(l.monthlyPayment)}/月</div>
+                  <div className="lsi-sub">
+                    {l.startYM&&<span>残高 ¥{fmtNum(calcBal)}（{paid}回済）</span>}
+                    {!l.startYM&&<span>残高 ¥{fmtNum(l.balance)}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 引落グループ */}
+      <div className="billing-groups">
+        {groups.map((g,i)=>(
+          <div className="billing-group" key={i}>
+            <div className="group-label">{g.label}</div>
+            <div className="group-amount">¥{fmtNum(g.amt)}</div>
+            <div className="group-cards">{g.cards.join(' / ')||'—'}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* チャート */}
+      <div className="charts-row">
+        <div className="chart-card" style={{marginBottom:0}}>
+          <div className="chart-title">支払い内訳</div>
+          {pieData.length===0
+            ?<div style={{color:'#64748b',textAlign:'center',padding:'20px',fontSize:13}}>データなし</div>
+            :<>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2} dataKey="value">
+                    {pieData.map((d,i)=><Cell key={i} fill={d.color}/>)}
+                  </Pie>
+                  <Tooltip formatter={v=>`¥${fmtNum(v)}`} contentStyle={{background:'#1e1e3a',border:'1px solid #2a2a4a',borderRadius:8,fontSize:12}}/>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pie-legend">
+                {pieData.map((d,i)=>(
+                  <div className="pie-legend-item" key={i}>
+                    <div className="pie-legend-dot" style={{background:d.color}}/>
+                    <span>{d.name}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          }
+        </div>
+        <div className="chart-card" style={{marginBottom:0}}>
+          <div className="chart-title">月別推移（12ヶ月）</div>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={lineData} margin={{top:4,right:10,left:0,bottom:4}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2a2a4a"/>
+              <XAxis dataKey="label" tick={{fill:'#64748b',fontSize:10}} axisLine={false} tickLine={false}/>
+              <YAxis tick={{fill:'#64748b',fontSize:10}} axisLine={false} tickLine={false} tickFormatter={v=>v>=10000?`${(v/10000).toFixed(0)}万`:v}/>
+              <Tooltip content={<CustomTooltip/>}/>
+              <Line type="monotone" dataKey="カード" stroke="#818cf8" strokeWidth={2} dot={{fill:'#818cf8',r:2}} activeDot={{r:4}}/>
+              {loans.length>0&&<Line type="monotone" dataKey="ローン" stroke={LOAN_COLOR} strokeWidth={2} dot={{fill:LOAN_COLOR,r:2}} activeDot={{r:4}}/>}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* 前年同月比較 */}
+      <div className="chart-card">
+        <div className="chart-title">前年同月比較</div>
+        <div style={{overflowX:'auto'}}>
+          <table className="yoy-table">
+            <thead><tr><th>項目</th><th>今月</th><th>前年同月</th><th>差額</th></tr></thead>
+            <tbody>
+              {yoyRows.map((r,i)=>{
+                const d=r.this-r.ly;
+                return(
+                  <tr key={i}>
+                    <td><span style={{display:'inline-flex',alignItems:'center',gap:6}}>
+                      <span style={{width:8,height:8,borderRadius:'50%',background:r.color,display:'inline-block'}}/>
+                      {r.name}
+                    </span></td>
+                    <td>¥{fmtNum(r.this)}</td>
+                    <td>¥{fmtNum(r.ly)}</td>
+                    <td className={d===0?'':(d>0?'yoy-neg':'yoy-pos')}>
+                      {d===0?'±0':d>0?`+¥${fmtNum(d)}`:`-¥${fmtNum(-d)}`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              {(()=>{
+                const totalThis = yoyRows.reduce((s,r)=>s+r.this,0);
+                const totalLy   = yoyRows.reduce((s,r)=>s+r.ly,0);
+                const d = totalThis - totalLy;
+                return(
+                  <tr style={{borderTop:'2px solid #3a3a5a'}}>
+                    <td style={{color:'#e2e8f0',fontWeight:800}}>合計</td>
+                    <td style={{color:'#818cf8',fontWeight:800}}>¥{fmtNum(totalThis)}</td>
+                    <td style={{color:'#818cf8',fontWeight:800}}>¥{fmtNum(totalLy)}</td>
+                    <td style={{fontWeight:800}} className={d===0?'':(d>0?'yoy-neg':'yoy-pos')}>
+                      {d===0?'±0':d>0?`+¥${fmtNum(d)}`:`-¥${fmtNum(-d)}`}
+                    </td>
+                  </tr>
+                );
+              })()}
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function cardGradient(color){
+  return `linear-gradient(135deg,${color}dd 0%,${color}88 100%)`;
+}
+
+// CardInput
+function CardInput({payments,setPayments,cards,members,cardMembers,currentYM}){
+  const [activeCard,setActiveCard]=useState(cards[0]?.id||'');
+  useEffect(()=>{
+    if(cards.length&&!cards.find(c=>c.id===activeCard)) setActiveCard(cards[0].id);
+  },[cards]);
+
+  const card=cards.find(c=>c.id===activeCard);
+  const activeMembers=useMemo(()=>card?getActiveMembers(members,cardMembers,card.id):members,[members,cardMembers,card]);
+  const total=card?cardTotal(payments,currentYM,card.id,activeMembers):0;
+
+  function setAmount(cardId,memberId,v){
+    setPayments(prev=>{
+      const p={...prev};
+      if(!p[currentYM]) p[currentYM]={};
+      if(!p[currentYM][cardId]) p[currentYM][cardId]={};
+      if(!p[currentYM][cardId][memberId]) p[currentYM][cardId][memberId]={amount:0,note:''};
+      p[currentYM]={...p[currentYM],[cardId]:{...p[currentYM][cardId],[memberId]:{...p[currentYM][cardId][memberId],amount:v}}};
+      return p;
+    });
+  }
+  function setNote(cardId,memberId,v){
+    setPayments(prev=>{
+      const p={...prev};
+      if(!p[currentYM]) p[currentYM]={};
+      if(!p[currentYM][cardId]) p[currentYM][cardId]={};
+      if(!p[currentYM][cardId][memberId]) p[currentYM][cardId][memberId]={amount:0,note:''};
+      p[currentYM]={...p[currentYM],[cardId]:{...p[currentYM][cardId],[memberId]:{...p[currentYM][cardId][memberId],note:v}}};
+      return p;
+    });
+  }
+
+  if(!card) return <div style={{color:'#64748b',textAlign:'center',padding:40}}>カードがありません</div>;
+  return(
+    <div>
+      <div className="card-tabs">
+        {cards.map(c=>(
+          <button key={c.id} className={`card-tab ${c.id===activeCard?'active':''}`}
+            style={c.id===activeCard?{background:c.color}:{}}
+            onClick={()=>setActiveCard(c.id)}>{c.name}</button>
+        ))}
+      </div>
+      <div className="hypercard" style={{background:cardGradient(card.color)}}>
+        <div className="hc-top">
+          <div className="hc-chip"/>
+          <svg width="44" height="28" viewBox="0 0 44 28">
+            <circle cx="16" cy="14" r="13" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="28" cy="14" r="13" fill="rgba(255,255,255,0.15)"/>
+          </svg>
+        </div>
+        <div className="hc-name">{card.name}</div>
+        <div className="hc-due">引落日: 毎月{card.dueDay}日</div>
+        <div className="hc-total" style={{marginTop:12}}>¥{fmtNum(total)}</div>
+      </div>
+      <div className="member-inputs">
+        {activeMembers.length===0
+          ?<div style={{color:'#64748b',textAlign:'center',padding:20,fontSize:13}}>メンバーが選択されていません</div>
+          :activeMembers.map(mb=>{
+            const amt=payments?.[currentYM]?.[card.id]?.[mb.id]?.amount||'';
+            const note=payments?.[currentYM]?.[card.id]?.[mb.id]?.note||'';
+            return(
+              <div className="member-row" key={mb.id}>
+                <div className="member-name">{mb.name}</div>
+                <div className="input-group">
+                  <div className="input-label">金額（円）</div>
+                  <AmountInput value={amt} onChange={v=>setAmount(card.id,mb.id,v)}/>
+                </div>
+                <div className="input-group">
+                  <div className="input-label">備考</div>
+                  <input className="note-input" type="text" placeholder="メモ..." value={note}
+                    onChange={e=>setNote(card.id,mb.id,e.target.value)}/>
+                </div>
+              </div>
+            );
+          })
+        }
+      </div>
+      <div style={{background:'#1e1e3a',border:'1px solid #2a2a4a',borderRadius:12,padding:'12px 16px',marginTop:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <span style={{color:'#64748b',fontWeight:700,fontSize:13}}>{card.name} 小計</span>
+        <span style={{color:card.color,fontWeight:900,fontSize:20}}>¥{fmtNum(total)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ⑥ ローン編集フォーム（1件分）
+function LoanItem({loan,onUpdate,onDelete}){
+  function upd(field,val){ onUpdate({...loan,[field]:val}); }
+  const todayYM = (()=>{ const d=new Date(); return toYM(d.getFullYear(),d.getMonth()+1); })();
+  const paid = calcPaidMonths(loan.startYM, todayYM);
+  const calcBal = calcLoanBalance(loan, todayYM);
+  const totalAmt = Number(loan.totalAmount||0);
+  const monthly  = Number(loan.monthlyPayment||0);
+  const showCalc = loan.startYM && totalAmt > 0 && monthly > 0;
+  const endYMVal = calcEndYM(loan.startYM, loan.totalPayments);
+  const endLabel = (()=>{
+    if(!endYMVal) return null;
+    const parts = endYMVal.split('-');
+    const y = Number(parts[0]), m = Number(parts[1]);
+    if(isNaN(y)||isNaN(m)) return null;
+    return `${y}年${m}月`;
+  })();
+
+  return(
+    <div className="loan-item">
+      <div className="loan-item-header">
+        <span style={{fontSize:18}}>🏦</span>
+        <input style={{background:'transparent',border:'none',color:'#4ade80',fontSize:14,fontWeight:700,flex:1,outline:'none'}}
+          value={loan.name} placeholder="ローン名称"
+          onChange={e=>upd('name',e.target.value)}/>
+        <button className="btn btn-danger btn-sm" onClick={onDelete}>削除</button>
+      </div>
+      <div className="loan-fields">
+        {[
+          {label:'借入総額（円）',   field:'totalAmount',    type:'number'},
+          {label:'月額返済額（円）', field:'monthlyPayment', type:'number'},
+          {label:'金利（%）',        field:'interestRate',   type:'number', step:'0.01'},
+        ].map(({label,field,type,step})=>(
+          <div className="loan-field" key={field}>
+            <label>{label}</label>
+            <input type={type} step={step||'1'} min="0"
+              value={loan[field]||''} placeholder="0"
+              onChange={e=>upd(field,e.target.value)}/>
+          </div>
+        ))}
+        <div className="loan-field">
+          <label>残高（手動・円）</label>
+          <input type="number" min="0" value={loan.balance||''} placeholder="0"
+            onChange={e=>upd('balance',e.target.value)}/>
+        </div>
+      </div>
+
+      {/* 開始年月・支払回数・完済予定 */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,margin:'8px 0'}}>
+        <div className="loan-field">
+          <label>支払開始年月</label>
+          <MonthPicker value={loan.startYM||''} onChange={v=>upd('startYM',v)}/>
+        </div>
+        <div className="loan-field">
+          <label>支払回数（回）</label>
+          <input type="number" min="1" value={loan.totalPayments||''} placeholder="例: 60"
+            onChange={e=>upd('totalPayments',e.target.value)}/>
+        </div>
+        <div className="loan-field">
+          <label>完済予定年月</label>
+          <div style={{
+            background:'#0f1a0f',border:'1px solid #2a3a2a',borderRadius:6,
+            padding:'6px 8px',fontSize:13,color:'#4ade80',fontWeight:700,
+            display:'flex',alignItems:'center',minHeight:32
+          }}>
+            {endLabel
+              ? endLabel
+              : <span style={{color:'#4a6a4a',fontWeight:400}}>自動計算</span>
+            }
+          </div>
+        </div>
+      </div>
+
+      {/* 計算残高表示 */}
+      {showCalc&&(
+        <div style={{background:'#0f2a0f',border:'1px solid #2a4a2a',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13}}>
+          <div style={{color:'#64748b',fontWeight:600,fontSize:11,marginBottom:6}}>残高自動計算（借入総額 − 月額 × 支払済み回数）</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:12,alignItems:'center'}}>
+            <span style={{color:'#94a3b8'}}>¥{fmtNum(totalAmt)}</span>
+            <span style={{color:'#64748b'}}>−</span>
+            <span style={{color:'#94a3b8'}}>¥{fmtNum(monthly)} × {paid}回</span>
+            <span style={{color:'#64748b'}}>=</span>
+            <span style={{color:'#4ade80',fontWeight:800,fontSize:16}}>¥{fmtNum(calcBal)}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="loan-bonus-row">
+        {[
+          {label:'☀️ 夏ボーナス払い',amtF:'bonusSummerAmount',moF:'bonusSummerMonth'},
+          {label:'❄️ 冬ボーナス払い',amtF:'bonusWinterAmount',moF:'bonusWinterMonth'},
+        ].map(({label,amtF,moF})=>(
+          <div className="loan-bonus-group" key={amtF}>
+            <div className="loan-bonus-label">{label}</div>
+            <div className="loan-bonus-inputs">
+              <input type="number" min="0" placeholder="金額(円)" value={loan[amtF]||''}
+                onChange={e=>upd(amtF,e.target.value)}/>
+              <input type="number" min="0" max="12" placeholder="支払月(0=なし)" value={loan[moF]||''}
+                onChange={e=>upd(moF,e.target.value)}/>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ⑤ ドラッグ＆ドロップ付きカード管理
+function CardSettings({cards,setCards,members,cardMembers,setCardMembers}){
+  const dragIdx=useRef(null);
+  const [dragOver,setDragOver]=useState(null);
+
+  function sortByDueDay(){
+    setCards(prev=>[...prev].sort((a,b)=>a.dueDay-b.dueDay));
+  }
+  function addCard(name,day,color){
+    if(!name.trim()||!day) return false;
+    const id='card_'+Date.now();
+    setCards(prev=>[...prev,{id,name:name.trim(),dueDay:Number(day),color}]);
+    return true;
+  }
+  function deleteCard(id){
+    setCards(prev=>prev.filter(c=>c.id!==id));
+    setCardMembers(prev=>{ const p={...prev}; delete p[id]; return p; });
+  }
+  function updateCard(id,field,val){
+    setCards(prev=>prev.map(c=>c.id===id?{...c,[field]:field==='dueDay'?Number(val):val}:c));
+  }
+  function toggleMember(cardId,memberId,checked){
+    setCardMembers(prev=>{
+      const cur=prev[cardId]!=null?prev[cardId]:members.map(m=>m.id);
+      const next=checked?[...cur.filter(id=>id!==memberId),memberId]:cur.filter(id=>id!==memberId);
+      return {...prev,[cardId]:next};
+    });
+  }
+
+  const [newName,setNewName]=useState('');
+  const [newDay,setNewDay]=useState('');
+  const [newColor,setNewColor]=useState('#818cf8');
+
+  function onDragStart(i){ dragIdx.current=i; }
+  function onDragOver(e,i){ e.preventDefault(); setDragOver(i); }
+  function onDrop(i){
+    if(dragIdx.current===null||dragIdx.current===i){ setDragOver(null); return; }
+    setCards(prev=>{
+      const a=[...prev];
+      const [moved]=a.splice(dragIdx.current,1);
+      a.splice(i,0,moved);
+      return a;
+    });
+    dragIdx.current=null; setDragOver(null);
+  }
+
+  return(
+    <div className="settings-section">
+      <div className="settings-title" style={{justifyContent:'space-between'}}>
+        <span>💳 カード管理</span>
+        <button className="btn btn-ghost btn-sm" onClick={sortByDueDay}>引落日順に並べる</button>
+      </div>
+      <div className="settings-list">
+        {cards.map((c,i)=>{
+          const enabledIds=cardMembers[c.id]!=null?cardMembers[c.id]:members.map(m=>m.id);
+          return(
+            <div key={c.id} className={`drag-item ${dragOver===i?'drag-over':''}`}
+              draggable
+              onDragStart={()=>onDragStart(i)}
+              onDragOver={e=>onDragOver(e,i)}
+              onDrop={()=>onDrop(i)}
+              onDragEnd={()=>setDragOver(null)}>
+              <div className="settings-item">
+                <div className="settings-item-row">
+                  <span className="drag-handle" title="ドラッグして並べ替え">⠿</span>
+                  <div className="color-dot" style={{background:c.color}}/>
+                  <input type="text" value={c.name} onChange={e=>updateCard(c.id,'name',e.target.value)} style={{flex:1}}/>
+                  <span style={{color:'#64748b',fontSize:12,flexShrink:0}}>引落</span>
+                  <input type="number" value={c.dueDay} min="1" max="31"
+                    onChange={e=>updateCard(c.id,'dueDay',e.target.value)} style={{width:45,flexShrink:0}}/>
+                  <span style={{color:'#64748b',fontSize:12}}>日</span>
+                  <input type="color" value={c.color} onChange={e=>updateCard(c.id,'color',e.target.value)}
+                    style={{width:28,height:28,padding:2,border:'none',background:'none',cursor:'pointer',flexShrink:0}}/>
+                  <button className="btn btn-danger btn-sm" onClick={()=>deleteCard(c.id)}>削除</button>
+                </div>
+                <div className="member-checks">
+                  <span style={{fontSize:11,color:'#64748b',fontWeight:600,alignSelf:'center'}}>メンバー:</span>
+                  {members.map(mb=>(
+                    <label className="member-check-label" key={mb.id}>
+                      <input type="checkbox" checked={enabledIds.includes(mb.id)}
+                        onChange={e=>toggleMember(c.id,mb.id,e.target.checked)}/>
+                      {mb.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="add-form">
+        <input type="text" placeholder="カード名" value={newName} onChange={e=>setNewName(e.target.value)}/>
+        <input type="number" placeholder="引落日" min="1" max="31" value={newDay} onChange={e=>setNewDay(e.target.value)} style={{width:80}}/>
+        <input type="color" value={newColor} onChange={e=>setNewColor(e.target.value)}
+          style={{width:40,padding:2,border:'1px solid #2a2a4a',borderRadius:8,background:'#0f0f1a',cursor:'pointer'}}/>
+        <button className="btn btn-primary" onClick={()=>{ if(addCard(newName,newDay,newColor)){setNewName('');setNewDay('');} }}>追加</button>
+      </div>
+    </div>
+  );
+}
+
+// Settings
+function Settings({cards,setCards,members,setMembers,cardMembers,setCardMembers,loans,setLoans,payments,setPayments,gClientId,setGClientId,gSheetId,setGSheetId,gSignedIn,gSyncing,gLastSync,gError,onGSignIn,onGSignOut,onGUpload,onGDownload}){
+  const [newMember,setNewMember]=useState('');
+  const [showImport,setShowImport]=useState(false);
+  const [importText,setImportText]=useState('');
+
+  function addMember(){
+    if(!newMember.trim()) return;
+    setMembers(prev=>[...prev,{id:'mb_'+Date.now(),name:newMember.trim()}]);
+    setNewMember('');
+  }
+  function deleteMember(id){
+    setMembers(prev=>prev.filter(m=>m.id!==id));
+    setCardMembers(prev=>{
+      const n={};
+      Object.entries(prev).forEach(([cid,mids])=>{ n[cid]=mids.filter(mid=>mid!==id); });
+      return n;
+    });
+  }
+
+  // ⑥ ローン操作
+  function addLoan(){
+    setLoans(prev=>[...prev,{
+      id:'loan_'+Date.now(),name:'新しいローン',
+      totalAmount:'',balance:'',monthlyPayment:'',interestRate:'',
+      totalPayments:'',startYM:'',
+      bonusSummerAmount:'',bonusSummerMonth:'',
+      bonusWinterAmount:'',bonusWinterMonth:'',
+    }]);
+  }
+  function updateLoan(id,data){ setLoans(prev=>prev.map(l=>l.id===id?data:l)); }
+  function deleteLoan(id){ setLoans(prev=>prev.filter(l=>l.id!==id)); }
+
+  // ③ CSVエクスポート（IDなし）
+  function exportCSV(){
+    const rows=[['年月','カード名','メンバー名','金額','備考']];
+    Object.entries(payments).sort().forEach(([ym,cardMap])=>{
+      Object.entries(cardMap).forEach(([cardId,memberMap])=>{
+        const card=cards.find(c=>c.id===cardId);
+        Object.entries(memberMap).forEach(([memberId,{amount,note}])=>{
+          const member=members.find(m=>m.id===memberId);
+          if(!amount&&!note) return;
+          rows.push([ym,card?.name||cardId,member?.name||memberId,amount||0,note||'']);
+        });
+      });
+    });
+    const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`CardManager_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  }
+  function doImport(){
+    try{
+      const lines=importText.trim().split('\n').slice(1);
+      const newP={...payments};
+      lines.forEach(line=>{
+        const cols=line.split(',').map(s=>s.replace(/^"|"$/g,'').replace(/""/g,'"'));
+        const [ym,cardName,memberName,amount,note]=cols;
+        if(!ym||!cardName||!memberName) return;
+        const card=cards.find(c=>c.name===cardName);
+        const member=members.find(m=>m.name===memberName);
+        if(!card||!member) return;
+        if(!newP[ym]) newP[ym]={};
+        if(!newP[ym][card.id]) newP[ym][card.id]={};
+        newP[ym][card.id][member.id]={amount:Number(String(amount).replace(/,/g,''))||0,note:note||''};
+      });
+      setPayments(newP);
+      setShowImport(false); setImportText('');
+      alert('インポート完了しました');
+    }catch(e){ alert('インポートエラー: '+e.message); }
+  }
+
+  return(
+    <div>
+      {/* ⑤ カード管理（D&D） */}
+      <CardSettings cards={cards} setCards={setCards} members={members}
+        cardMembers={cardMembers} setCardMembers={setCardMembers}/>
+
+      {/* ④ メンバー管理 */}
+      <div className="settings-section">
+        <div className="settings-title">👤 メンバー管理</div>
+        <div className="settings-list">
+          {members.map(m=>(
+            <div className="settings-item" key={m.id}>
+              <div className="settings-item-row">
+                <input type="text" value={m.name}
+                  onChange={e=>setMembers(prev=>prev.map(mb=>mb.id===m.id?{...mb,name:e.target.value}:mb))}
+                  style={{flex:1}}/>
+                <button className="btn btn-danger btn-sm" onClick={()=>deleteMember(m.id)}>削除</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="add-form">
+          <input type="text" placeholder="メンバー名" value={newMember}
+            onChange={e=>setNewMember(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter')addMember();}}/>
+          <button className="btn btn-primary" onClick={addMember}>追加</button>
+        </div>
+      </div>
+
+      {/* ⑥ ローン管理 */}
+      <div className="settings-section" style={{borderColor:'#2a4a2a'}}>
+        <div className="settings-title" style={{color:'#4ade80',justifyContent:'space-between'}}>
+          <span>🏦 ローン管理</span>
+          <button className="btn btn-green btn-sm" onClick={addLoan}>＋ ローン追加</button>
+        </div>
+        {loans.length===0
+          ?<div style={{color:'#4a6a4a',textAlign:'center',padding:20,fontSize:13}}>ローンがありません。上の「ローン追加」ボタンで追加してください。</div>
+          :loans.map(l=>(
+            <LoanItem key={l.id} loan={l}
+              onUpdate={data=>updateLoan(l.id,data)}
+              onDelete={()=>deleteLoan(l.id)}/>
+          ))
+        }
+      </div>
+
+      {/* Google Sheets 連携 */}
+      <GoogleSettings
+        clientId={gClientId} setClientId={setGClientId}
+        sheetId={gSheetId} setSheetId={setGSheetId}
+        isSignedIn={gSignedIn} isSyncing={gSyncing} lastSync={gLastSync} syncError={gError}
+        onSignIn={onGSignIn} onSignOut={onGSignOut}
+        onUpload={onGUpload} onDownload={onGDownload}/>
+
+      {/* データ管理 */}
+      <div className="settings-section">
+        <div className="settings-title">📁 データ管理</div>
+        <div className="csv-row">
+          <button className="btn btn-primary" onClick={exportCSV}>CSVエクスポート</button>
+          <button className="btn btn-ghost" onClick={()=>setShowImport(true)}>CSVインポート</button>
+          <button className="btn btn-danger" onClick={()=>{ if(confirm('全データを削除しますか？'))setPayments({}); }}>データリセット</button>
+        </div>
+      </div>
+
+      {showImport&&(
+        <div className="modal-overlay" onClick={()=>setShowImport(false)}>
+          <div className="modal" onClick={e=>e.stopPropagation()}>
+            <h3>CSVインポート</h3>
+            <p style={{fontSize:12,color:'#64748b',marginBottom:8}}>年月・カード名・メンバー名・金額・備考 の形式で貼り付けてください。</p>
+            <textarea value={importText} onChange={e=>setImportText(e.target.value)} placeholder="CSVデータを貼り付け..."/>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={()=>setShowImport(false)}>キャンセル</button>
+              <button className="btn btn-primary" onClick={doImport}>インポート実行</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// カード別使用推移表
+function TrendTable({payments, cards, members, loans, currentYM}){
+  // デフォルト: 現在月の12ヶ月前〜現在月
+  const defaultStart = useMemo(()=>{ let ym=currentYM; for(let i=0;i<11;i++) ym=prevMonth(ym); return ym; },[currentYM]);
+  const [startYM, setStartYM] = useState(defaultStart);
+  const [endYM,   setEndYM  ] = useState(currentYM);
+
+  // 表示する月リスト（startYM〜endYM）
+  const ymList = useMemo(()=>{
+    if(!startYM||!endYM||startYM>endYM) return [];
+    const list=[]; let ym=startYM;
+    while(ym<=endYM){ list.push(ym); ym=nextMonth(ym); if(list.length>60) break; }
+    return list;
+  },[startYM,endYM]);
+
+  // カード別月別合計
+  const data = useMemo(()=>{
+    return cards.map(c=>({
+      id:c.id, name:c.name, color:c.color,
+      monthly: ymList.map(ym=>cardTotal(payments,ym,c.id,members)),
+    }));
+  },[cards,members,payments,ymList]);
+
+  // ローン行
+  const loanRow = useMemo(()=>({
+    name:'ローン合計', color:'#4ade80',
+    monthly: ymList.map(ym=>getLoanMonthly(loans,ym)+getLoanBonusForYM(loans,ym)),
+  }),[loans,ymList]);
+
+  // 合計行
+  const totalRow = useMemo(()=>({
+    name:'合計', color:'#818cf8',
+    monthly: ymList.map((_,i)=>data.reduce((s,c)=>s+c.monthly[i],0)+(loans.length?loanRow.monthly[i]:0)),
+  }),[data,loanRow,ymList,loans]);
+
+  // 列ごとの最大値（ヒートマップ用）
+  const colMax = useMemo(()=>ymList.map((_,i)=>
+    Math.max(1,...data.map(c=>c.monthly[i]))
+  ),[data,ymList]);
+
+  const th={padding:'6px 10px',fontSize:11,color:'#64748b',fontWeight:700,textAlign:'right',whiteSpace:'nowrap',borderBottom:'1px solid #2a2a4a',position:'sticky',top:0,background:'#1e1e3a'};
+  const thL={...th,textAlign:'left',left:0,zIndex:2,minWidth:120};
+  const td={padding:'5px 10px',fontSize:12,textAlign:'right',borderBottom:'1px solid #1a1a2e',whiteSpace:'nowrap'};
+  const tdL={...td,textAlign:'left',position:'sticky',left:0,background:'#1e1e3a',fontWeight:600};
+
+  function heatBg(val, max){
+    if(!val) return 'transparent';
+    const ratio = Math.min(val/max, 1);
+    return `rgba(129,140,248,${(ratio*0.35).toFixed(2)})`;
+  }
+
+  const rows = [...data, ...(loans.length?[loanRow]:[]), totalRow];
+
+  if(ymList.length===0) return(
+    <div>
+      <div style={{marginBottom:12}}>
+        <div style={{fontSize:14,fontWeight:700,color:'#94a3b8',marginBottom:10}}>カード別使用推移</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:10,alignItems:'flex-end'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:3}}>
+            <span style={{fontSize:11,color:'#64748b',fontWeight:600}}>開始年月</span>
+            <MonthPicker value={startYM} onChange={v=>{ if(v) setStartYM(v); }}/>
+          </div>
+          <div style={{color:'#64748b',paddingBottom:4}}>〜</div>
+          <div style={{display:'flex',flexDirection:'column',gap:3}}>
+            <span style={{fontSize:11,color:'#64748b',fontWeight:600}}>終了年月</span>
+            <MonthPicker value={endYM} onChange={v=>{ if(v) setEndYM(v); }}/>
+          </div>
+        </div>
+      </div>
+      <div style={{color:'#64748b',textAlign:'center',padding:40,fontSize:13}}>開始・終了年月を指定してください</div>
+    </div>
+  );
+
+  return(
+    <div>
+      <div style={{marginBottom:12}}>
+        <div style={{fontSize:14,fontWeight:700,color:'#94a3b8',marginBottom:10}}>カード別使用推移</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:10,alignItems:'flex-end'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:3}}>
+            <span style={{fontSize:11,color:'#64748b',fontWeight:600}}>開始年月</span>
+            <MonthPicker value={startYM} onChange={v=>{ if(v) setStartYM(v); }}/>
+          </div>
+          <div style={{color:'#64748b',paddingBottom:4}}>〜</div>
+          <div style={{display:'flex',flexDirection:'column',gap:3}}>
+            <span style={{fontSize:11,color:'#64748b',fontWeight:600}}>終了年月</span>
+            <MonthPicker value={endYM} onChange={v=>{ if(v) setEndYM(v); }}/>
+          </div>
+          <div style={{display:'flex',gap:4,paddingBottom:2}}>
+            {[6,12,24].map(n=>(
+              <button key={n} className="btn btn-ghost" style={{padding:'4px 10px',fontSize:11}}
+                onClick={()=>{ let ym=endYM; for(let i=0;i<n-1;i++) ym=prevMonth(ym); setStartYM(ym); }}>
+                直近{n}ヶ月
+              </button>
+            ))}
+          </div>
+          {ymList.length>0&&<span style={{fontSize:11,color:'#64748b',paddingBottom:4}}>{ymList.length}ヶ月分</span>}
+        </div>
+      </div>
+      <div style={{overflowX:'auto',borderRadius:12,border:'1px solid #2a2a4a'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',minWidth:500}}>
+          <thead>
+            <tr>
+              <th style={thL}>カード</th>
+              {ymList.map(ym=>{
+                const [y,m]=ym.split('-').map(Number);
+                const isCurrent = ym===currentYM;
+                return(
+                  <th key={ym} style={{...th, color:isCurrent?'#818cf8':'#64748b', background:isCurrent?'#1a1a3a':'#1e1e3a'}}>
+                    {y}/<br/>{m}月
+                  </th>
+                );
+              })}
+              <th style={{...th,color:'#c084fc'}}>合計</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row,ri)=>{
+              const isTotal = row.name==='合計';
+              const isLoan  = row.name==='ローン合計';
+              const rowSum  = row.monthly.reduce((s,v)=>s+v,0);
+              return(
+                <tr key={ri} style={isTotal?{borderTop:'2px solid #3a3a5a'}:{}}>
+                  <td style={{...tdL, background:isTotal?'#161630':isLoan?'#0f1a0f':'#1e1e3a',
+                    color:isTotal?'#e2e8f0':row.color, fontWeight:isTotal?800:600}}>
+                    <span style={{display:'inline-flex',alignItems:'center',gap:6}}>
+                      {!isTotal&&<span style={{width:8,height:8,borderRadius:'50%',background:row.color,display:'inline-block',flexShrink:0}}/>}
+                      {row.name}
+                    </span>
+                  </td>
+                  {row.monthly.map((val,ci)=>{
+                    const isCurrent = ymList[ci]===currentYM;
+                    return(
+                      <td key={ci} style={{...td,
+                        background:isTotal?'#161630':(val?heatBg(val,colMax[ci]):'transparent'),
+                        color:isTotal?'#818cf8':val?'#e2e8f0':'#3a3a5a',
+                        fontWeight:isTotal?800:val?600:400,
+                        borderLeft:isCurrent?'1px solid #818cf850':'none',
+                        borderRight:isCurrent?'1px solid #818cf850':'none',
+                      }}>
+                        {val?`¥${fmtNum(val)}`:'—'}
+                      </td>
+                    );
+                  })}
+                  <td style={{...td,color:isTotal?'#c084fc':row.color,fontWeight:800,
+                    background:isTotal?'#161630':'transparent'}}>
+                    {rowSum?`¥${fmtNum(rowSum)}`:'—'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Google Sheets 設定コンポーネント
+function GoogleSettings({clientId,setClientId,sheetId,setSheetId,isSignedIn,isSyncing,lastSync,syncError,onSignIn,onSignOut,onUpload,onDownload}){
+  const [showGuide,setShowGuide]=useState(false);
+  const ready=clientId&&sheetId;
+  return(
+    <div className="settings-section" style={{borderColor:'#1a3a2a'}}>
+      <div className="settings-title" style={{color:'#34d399',justifyContent:'space-between'}}>
+        <span>🔗 Google Sheets 連携</span>
+        {isSignedIn&&<span style={{fontSize:11,color:'#4ade80',fontWeight:400}}>● サインイン中</span>}
+      </div>
+
+      {/* 設定手順 */}
+      <div style={{marginBottom:12}}>
+        <button className="btn btn-ghost btn-sm" style={{fontSize:11}} onClick={()=>setShowGuide(v=>!v)}>
+          {showGuide?'▲ 設定手順を閉じる':'▼ 設定手順を見る'}
+        </button>
+        {showGuide&&(
+          <ol style={{fontSize:12,color:'#94a3b8',marginTop:8,paddingLeft:18,lineHeight:2}}>
+            <li><a href="https://console.cloud.google.com/" target="_blank" style={{color:'#818cf8'}}>Google Cloud Console</a> でプロジェクトを作成</li>
+            <li>「APIとサービス」→「ライブラリ」→ <b>Google Sheets API</b> を有効化</li>
+            <li>「認証情報」→「認証情報を作成」→ <b>OAuthクライアントID</b></li>
+            <li>種類: <b>ウェブアプリケーション</b></li>
+            <li>「承認済みのJavaScriptオリジン」に <code style={{background:'#0f0f1a',padding:'1px 4px',borderRadius:3}}>http://localhost:3457</code> を追加</li>
+            <li>作成後の <b>クライアントID</b> を下欄に貼り付け</li>
+            <li><a href="https://sheets.google.com/" target="_blank" style={{color:'#818cf8'}}>Google Sheets</a> で新規スプレッドシートを作成</li>
+            <li>URLの <code style={{background:'#0f0f1a',padding:'1px 4px',borderRadius:3}}>/d/〇〇〇/</code> の部分（スプレッドシートID）を下欄に貼り付け</li>
+          </ol>
+        )}
+      </div>
+
+      <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
+        <div className="loan-field">
+          <label>Google クライアントID</label>
+          <input type="text" value={clientId} onChange={e=>setClientId(e.target.value)}
+            placeholder="xxxxx.apps.googleusercontent.com"
+            style={{background:'#0f0f1a',border:'1px solid #2a2a4a',color:'#e2e8f0',borderRadius:6,padding:'6px 10px',fontSize:12,width:'100%',outline:'none'}}/>
+        </div>
+        <div className="loan-field">
+          <label>スプレッドシートID</label>
+          <input type="text" value={sheetId} onChange={e=>setSheetId(e.target.value)}
+            placeholder="URLの /d/〇〇〇/ の部分"
+            style={{background:'#0f0f1a',border:'1px solid #2a2a4a',color:'#e2e8f0',borderRadius:6,padding:'6px 10px',fontSize:12,width:'100%',outline:'none'}}/>
+        </div>
+      </div>
+
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+        {!isSignedIn
+          ?<button className="btn btn-green" onClick={onSignIn} disabled={!ready||isSyncing}>
+              Googleサインイン
+            </button>
+          :<>
+            <button className="btn btn-primary" onClick={onUpload} disabled={isSyncing}>
+              {isSyncing?'同期中…':'↑ シートへ保存'}
+            </button>
+            <button className="btn btn-ghost" onClick={onDownload} disabled={isSyncing}>
+              {isSyncing?'同期中…':'↓ シートから読込'}
+            </button>
+            <button className="btn btn-danger btn-sm" onClick={onSignOut}>サインアウト</button>
+          </>
+        }
+        {lastSync&&<span style={{fontSize:11,color:'#64748b'}}>最終同期: {lastSync}</span>}
+      </div>
+      {syncError&&<div style={{marginTop:8,fontSize:12,color:'#f87171',background:'#2a1a1a',borderRadius:6,padding:'6px 10px'}}>{syncError}</div>}
+    </div>
+  );
+}
+
+// Main App
+function App(){
+  const now=new Date();
+  const [currentYM,setCurrentYM]=useState(toYM(now.getFullYear(),now.getMonth()+1));
+  const [view,setView]=useState('dashboard');
+  const [cards,setCards]            = useLocalStorage('cm_cards',   INITIAL_CARDS);
+  const [members,setMembers]        = useLocalStorage('cm_members', INITIAL_MEMBERS);
+  const [payments,setPayments]      = useLocalStorage('cm_payments',{});
+  const [cardMembers,setCardMembers]= useLocalStorage('cm_card_members',{});
+  const [loans,setLoans]            = useLocalStorage('cm_loans',   INITIAL_LOANS);
+  const [gClientId,setGClientId]    = useLocalStorage('cm_g_client_id','');
+  const [gSheetId,setGSheetId]      = useLocalStorage('cm_g_sheet_id','');
+  const [gSignedIn,setGSignedIn]    = useState(false);
+  const [gSyncing,setGSyncing]      = useState(false);
+  const [gLastSync,setGLastSync]    = useState('');
+  const [gError,setGError]          = useState('');
+
+  async function handleGSignIn(){
+    setGError('');
+    const ok=await gapiLoad();
+    if(!ok){ setGError('Google APIの読み込みに失敗しました'); return; }
+    initTokenClient(gClientId,(resp)=>{
+      if(resp.access_token){
+        gapi.client.setToken({access_token:resp.access_token});
+        setGSignedIn(true); setGError('');
+      } else {
+        setGError('サインインに失敗しました: '+(resp.error||''));
+      }
+    });
+    _tokenClient.requestAccessToken({prompt:'consent'});
+  }
+  function handleGSignOut(){ gSignOut(); setGSignedIn(false); }
+  async function handleUpload(){
+    setGSyncing(true); setGError('');
+    try{
+      await uploadToSheets(gSheetId,{payments,cards,members,cardMembers,loans});
+      setGLastSync(new Date().toLocaleString('ja-JP'));
+    }catch(e){ setGError('アップロード失敗: '+e.message); }
+    setGSyncing(false);
+  }
+  async function handleDownload(){
+    setGSyncing(true); setGError('');
+    try{
+      const d=await downloadFromSheets(gSheetId);
+      if(d.cards.length)   setCards(d.cards);
+      if(d.members.length) setMembers(d.members);
+      setPayments(d.payments);
+      setCardMembers(d.cardMembers);
+      if(d.loans.length)   setLoans(d.loans);
+      setGLastSync(new Date().toLocaleString('ja-JP'));
+    }catch(e){ setGError('ダウンロード失敗: '+e.message); }
+    setGSyncing(false);
+  }
+
+  return(
+    <div className="app">
+      <div className="header">
+        <div className="logo">CardManager</div>
+        <nav className="nav">
+          <button className={`nav-btn ${view==='dashboard'?'active':''}`} onClick={()=>setView('dashboard')}>ダッシュボード</button>
+          <button className={`nav-btn ${view==='input'?'active':''}`} onClick={()=>setView('input')}>入力</button>
+          <button className={`nav-btn ${view==='trend'?'active':''}`} onClick={()=>setView('trend')}>推移</button>
+          <button className={`nav-btn ${view==='settings'?'active':''}`} onClick={()=>setView('settings')}>設定</button>
+        </nav>
+      </div>
+      <div className="main">
+        {view!=='settings'&&view!=='trend'&&(
+          <div className="month-nav">
+            <button onClick={()=>setCurrentYM(prevMonth(currentYM))}>‹</button>
+            <div className="month-title">{ymLabel(currentYM)}</div>
+            <button onClick={()=>setCurrentYM(nextMonth(currentYM))}>›</button>
+          </div>
+        )}
+        {view==='dashboard'&&
+          <Dashboard payments={payments} cards={cards} members={members} loans={loans} currentYM={currentYM}/>}
+        {view==='input'&&
+          <CardInput payments={payments} setPayments={setPayments} cards={cards} members={members} cardMembers={cardMembers} currentYM={currentYM}/>}
+        {view==='trend'&&
+          <TrendTable payments={payments} cards={cards} members={members} loans={loans} currentYM={currentYM}/>}
+        {view==='settings'&&
+          <Settings cards={cards} setCards={setCards} members={members} setMembers={setMembers}
+            cardMembers={cardMembers} setCardMembers={setCardMembers}
+            loans={loans} setLoans={setLoans}
+            payments={payments} setPayments={setPayments}
+            gClientId={gClientId} setGClientId={setGClientId}
+            gSheetId={gSheetId} setGSheetId={setGSheetId}
+            gSignedIn={gSignedIn} gSyncing={gSyncing} gLastSync={gLastSync} gError={gError}
+            onGSignIn={handleGSignIn} onGSignOut={handleGSignOut}
+            onGUpload={handleUpload} onGDownload={handleDownload}/>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
