@@ -158,6 +158,24 @@
       .cards-grid{grid-template-columns:1fr 1fr}
       .loan-bonus-row{grid-template-columns:1fr}
     }
+    /* Login */
+    .login-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+    .login-box{background:linear-gradient(135deg,#1e1e3a,#16162e);border:1px solid #2a2a4a;border-radius:24px;padding:36px 32px;width:100%;max-width:360px;text-align:center}
+    .login-logo{font-size:28px;font-weight:900;background:linear-gradient(90deg,#818cf8,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+    .login-sub{font-size:13px;color:#64748b;margin-bottom:32px}
+    .pin-dots{display:flex;justify-content:center;gap:14px;margin-bottom:28px}
+    .pin-dot{width:18px;height:18px;border-radius:50%;border:2px solid #3a3a5a;transition:all 0.2s}
+    .pin-dot.filled{background:linear-gradient(135deg,#818cf8,#c084fc);border-color:#818cf8;transform:scale(1.1)}
+    .pin-dot.error{background:#f87171;border-color:#f87171}
+    .pin-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+    .pin-key{background:#2a2a4a;border:none;color:#e2e8f0;font-size:20px;font-weight:700;border-radius:14px;aspect-ratio:1;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:center}
+    .pin-key:hover{background:#3a3a5a;transform:scale(1.05)}
+    .pin-key:active{transform:scale(0.95)}
+    .pin-key.del{font-size:16px;color:#94a3b8}
+    .pin-key.empty{background:transparent;cursor:default;pointer-events:none}
+    .login-msg{font-size:13px;color:#f87171;min-height:20px;margin-bottom:8px}
+    .login-hint{font-size:12px;color:#64748b;margin-top:16px}
+    @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
   </style>
 </head>
 <body>
@@ -1393,11 +1411,126 @@ function GoogleSettings({clientId,setClientId,sheetId,setSheetId,isSignedIn,isSy
   );
 }
 
+// ========== ログイン画面 ==========
+const PIN_KEY = 'cm_pin_hash';
+
+function hashPin(pin){
+  // 簡易ハッシュ（XOR + sum）
+  let h = 0x811c9dc5;
+  for(let i=0;i<pin.length;i++){
+    h ^= pin.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+}
+
+function LoginScreen({onLogin}){
+  const storedHash = localStorage.getItem(PIN_KEY);
+  const isSetup = !storedHash;
+  const [pin, setPin] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [step, setStep] = useState(isSetup ? 'set' : 'enter'); // set | confirm | enter
+  const [msg, setMsg] = useState('');
+  const [shake, setShake] = useState(false);
+  const PIN_LEN = 4;
+
+  function doShake(message){
+    setMsg(message);
+    setShake(true);
+    setTimeout(()=>setShake(false), 500);
+  }
+
+  function handleKey(k){
+    if(k === 'del'){
+      if(step === 'confirm') setConfirm(p=>p.slice(0,-1));
+      else setPin(p=>p.slice(0,-1));
+      setMsg('');
+      return;
+    }
+    if(step === 'set'){
+      const next = pin + k;
+      if(next.length > PIN_LEN) return;
+      setPin(next);
+      if(next.length === PIN_LEN){
+        setTimeout(()=>{ setStep('confirm'); setMsg(''); }, 150);
+      }
+    } else if(step === 'confirm'){
+      const next = confirm + k;
+      if(next.length > PIN_LEN) return;
+      setConfirm(next);
+      if(next.length === PIN_LEN){
+        setTimeout(()=>{
+          if(next === pin){
+            localStorage.setItem(PIN_KEY, hashPin(next));
+            onLogin();
+          } else {
+            doShake('PINが一致しません。最初からやり直します。');
+            setPin(''); setConfirm(''); setStep('set');
+          }
+        }, 150);
+      }
+    } else {
+      const next = pin + k;
+      if(next.length > PIN_LEN) return;
+      setPin(next);
+      if(next.length === PIN_LEN){
+        setTimeout(()=>{
+          if(hashPin(next) === storedHash){
+            onLogin();
+          } else {
+            doShake('PINが違います');
+            setPin('');
+          }
+        }, 150);
+      }
+    }
+  }
+
+  const currentPin = step === 'confirm' ? confirm : pin;
+  const label = step === 'set' ? 'PINを設定してください'
+              : step === 'confirm' ? 'もう一度入力してください'
+              : 'PINを入力してください';
+
+  const keys = ['1','2','3','4','5','6','7','8','9','empty','0','del'];
+
+  return(
+    <div className="login-wrap">
+      <div className="login-box">
+        <div className="login-logo">CardManager</div>
+        <div className="login-sub">{label}</div>
+        <div className="pin-dots" style={shake?{animation:'shake 0.4s'}:{}}>
+          {Array.from({length:PIN_LEN}).map((_,i)=>(
+            <div key={i} className={`pin-dot${currentPin.length>i?' filled':''}${shake?' error':''}`}/>
+          ))}
+        </div>
+        {msg && <div className="login-msg">{msg}</div>}
+        <div className="pin-keypad">
+          {keys.map((k,i)=>(
+            k === 'empty'
+              ? <div key={i} className="pin-key empty"/>
+              : <button key={i} className={`pin-key${k==='del'?' del':''}`} onClick={()=>handleKey(k)}>
+                  {k === 'del' ? '⌫' : k}
+                </button>
+          ))}
+        </div>
+        {step === 'set' && <div className="login-hint">4桁のPINコードを設定します</div>}
+      </div>
+    </div>
+  );
+}
+// ===================================
+
 // Main App
 function App(){
   const now=new Date();
+  const [loggedIn,setLoggedIn]=useState(()=>!!sessionStorage.getItem('cm_session'));
   const [currentYM,setCurrentYM]=useState(toYM(now.getFullYear(),now.getMonth()+1));
   const [view,setView]=useState('dashboard');
+
+  function handleLogin(){ sessionStorage.setItem('cm_session','1'); setLoggedIn(true); }
+  function handleLock(){ sessionStorage.removeItem('cm_session'); setLoggedIn(false); }
+
+  if(!loggedIn) return <LoginScreen onLogin={handleLogin}/>;
   const [cards,setCards]            = useLocalStorage('cm_cards',   INITIAL_CARDS);
   const [members,setMembers]        = useLocalStorage('cm_members', INITIAL_MEMBERS);
   const [payments,setPayments]      = useLocalStorage('cm_payments',{});
@@ -1456,6 +1589,7 @@ function App(){
           <button className={`nav-btn ${view==='input'?'active':''}`} onClick={()=>setView('input')}>入力</button>
           <button className={`nav-btn ${view==='trend'?'active':''}`} onClick={()=>setView('trend')}>推移</button>
           <button className={`nav-btn ${view==='settings'?'active':''}`} onClick={()=>setView('settings')}>設定</button>
+          <button className="nav-btn" onClick={handleLock} title="ロック" style={{padding:'6px 10px'}}>🔒</button>
         </nav>
       </div>
       <div className="main">
