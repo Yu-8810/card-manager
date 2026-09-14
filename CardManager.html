@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -473,11 +474,12 @@ async function downloadFromSheets(sid){
 // =========================================
 
 // ① カンマ付き金額入力
-function AmountInput({value,onChange,className,...props}){
+const AmountInput = React.forwardRef(function AmountInput({value,onChange,className,...props}, ref){
   const [focused,setFocused]=useState(false);
   const dv=focused?(value===0||value===''?'':String(value)):(value?fmtNum(value):'');
   return(
     <input
+      ref={ref}
       className={className||'amount-input'}
       type="text" inputMode="numeric" placeholder="0"
       value={dv}
@@ -490,7 +492,7 @@ function AmountInput({value,onChange,className,...props}){
       {...props}
     />
   );
-}
+});
 
 function CustomTooltip({active,payload,label}){
   if(!active||!payload?.length) return null;
@@ -743,6 +745,7 @@ function cardGradient(color){
 // CardInput
 function CardInput({payments,setPayments,cards,members,cardMembers,currentYM}){
   const [activeCard,setActiveCard]=useState(cards[0]?.id||'');
+  const [inputMode,setInputMode]=useLocalStorage('cm_input_mode','grid');
   useEffect(()=>{
     if(cards.length&&!cards.find(c=>c.id===activeCard)) setActiveCard(cards[0].id);
   },[cards]);
@@ -772,9 +775,27 @@ function CardInput({payments,setPayments,cards,members,cardMembers,currentYM}){
     });
   }
 
+  const modeToggle=(
+    <div style={{display:'flex',gap:6,marginBottom:14}}>
+      <button className={`nav-btn ${inputMode==='grid'?'active':''}`} onClick={()=>setInputMode('grid')}>一覧入力</button>
+      <button className={`nav-btn ${inputMode==='flip'?'active':''}`} onClick={()=>setInputMode('flip')}>カード表示</button>
+    </div>
+  );
+
+  if(inputMode==='grid'){
+    return(
+      <div>
+        {modeToggle}
+        <GridInput payments={payments} setAmount={setAmount} setNote={setNote}
+          cards={cards} members={members} cardMembers={cardMembers} currentYM={currentYM}/>
+      </div>
+    );
+  }
+
   if(!card) return <div style={{color:'#64748b',textAlign:'center',padding:40}}>カードがありません</div>;
   return(
     <div>
+      {modeToggle}
       <div className="card-tabs">
         {cards.map(c=>(
           <button key={c.id} className={`card-tab ${c.id===activeCard?'active':''}`}
@@ -820,6 +841,138 @@ function CardInput({payments,setPayments,cards,members,cardMembers,currentYM}){
       <div style={{background:'#1e1e3a',border:'1px solid #2a2a4a',borderRadius:12,padding:'12px 16px',marginTop:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <span style={{color:'#64748b',fontWeight:700,fontSize:13}}>{card.name} 小計</span>
         <span style={{color:card.color,fontWeight:900,fontSize:20}}>¥{fmtNum(total)}</span>
+      </div>
+    </div>
+  );
+}
+
+// 月別一括入力（全カード×全メンバーを1画面のテーブルで入力。Tab/Enter/矢印キーで移動可）
+function GridInput({payments,setAmount,setNote,cards,members,cardMembers,currentYM}){
+  const [fieldMode,setFieldMode]=useState('amount'); // 'amount' | 'note'
+  const refs=useRef({});
+
+  const linkedMap=useMemo(()=>{
+    const m={};
+    cards.forEach(c=>{
+      const ids=getActiveMembers(members,cardMembers,c.id).map(x=>x.id);
+      m[c.id]=new Set(ids);
+    });
+    return m;
+  },[cards,members,cardMembers]);
+
+  function isLinked(cardId,memberId){ return linkedMap[cardId]?linkedMap[cardId].has(memberId):false; }
+
+  function focusAt(ci,mi){
+    const el=refs.current[`${ci}_${mi}`];
+    if(el&&!el.disabled){ el.focus(); el.select&&el.select(); return true; }
+    return false;
+  }
+
+  function step(ci,mi,dr,dc){
+    let r=ci,c=mi;
+    const maxSteps=cards.length*members.length;
+    for(let i=0;i<maxSteps;i++){
+      r+=dr; c+=dc;
+      if(dc!==0){
+        if(c>=members.length){ c=0; r+=1; }
+        else if(c<0){ c=members.length-1; r-=1; }
+      }
+      if(r<0||r>=cards.length) return;
+      if(c<0||c>=members.length) return;
+      if(isLinked(cards[r].id,members[c].id)){ focusAt(r,c); return; }
+    }
+  }
+
+  function onKeyDown(e,ci,mi){
+    if(e.key==='Enter'){ e.preventDefault(); step(ci,mi,0,1); }
+    else if(e.key==='ArrowDown'){ e.preventDefault(); step(ci,mi,1,0); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); step(ci,mi,-1,0); }
+    else if(e.key==='ArrowRight'&&e.target.selectionStart===e.target.value.length){ step(ci,mi,0,1); }
+    else if(e.key==='ArrowLeft'&&e.target.selectionStart===0){ step(ci,mi,0,-1); }
+  }
+
+  const totals=useMemo(()=>{
+    const perCard=cards.map(c=>cardTotal(payments,currentYM,c.id,getActiveMembers(members,cardMembers,c.id)));
+    const perMember=members.map(m=>{
+      let s=0;
+      cards.forEach(c=>{ if(isLinked(c.id,m.id)) s+=Number(payments?.[currentYM]?.[c.id]?.[m.id]?.amount||0); });
+      return s;
+    });
+    const grand=perCard.reduce((s,v)=>s+v,0);
+    return {perCard,perMember,grand};
+  },[payments,cards,members,cardMembers,currentYM,linkedMap]);
+
+  const th={padding:'8px 10px',fontSize:11,color:'#64748b',fontWeight:700,textAlign:'right',whiteSpace:'nowrap',borderBottom:'1px solid #2a2a4a',position:'sticky',top:0,background:'#1e1e3a'};
+  const thL={...th,textAlign:'left',left:0,zIndex:2,minWidth:110};
+  const td={padding:4,textAlign:'right',borderBottom:'1px solid #1a1a2e'};
+  const tdL={padding:'8px 10px',textAlign:'left',position:'sticky',left:0,background:'#1e1e3a',fontWeight:700,fontSize:13,borderBottom:'1px solid #1a1a2e',whiteSpace:'nowrap'};
+
+  return(
+    <div>
+      <div style={{display:'flex',gap:6,marginBottom:12,alignItems:'center',flexWrap:'wrap'}}>
+        <span style={{fontSize:11,color:'#64748b',fontWeight:600}}>入力項目:</span>
+        <button className={`btn btn-sm ${fieldMode==='amount'?'btn-primary':'btn-ghost'}`} onClick={()=>setFieldMode('amount')}>金額</button>
+        <button className={`btn btn-sm ${fieldMode==='note'?'btn-primary':'btn-ghost'}`} onClick={()=>setFieldMode('note')}>備考</button>
+        <span style={{fontSize:11,color:'#3a3a5a',marginLeft:'auto'}}>Tab / Enter / 矢印キーで移動できます</span>
+      </div>
+      <div style={{overflowX:'auto',borderRadius:12,border:'1px solid #2a2a4a'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',minWidth:560}}>
+          <thead>
+            <tr>
+              <th style={thL}>カード</th>
+              {members.map(mb=><th key={mb.id} style={th}>{mb.name}</th>)}
+              <th style={{...th,color:'#c084fc'}}>小計</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cards.map((c,ci)=>(
+              <tr key={c.id}>
+                <td style={{...tdL,color:c.color}}>
+                  <span style={{display:'inline-flex',alignItems:'center',gap:6}}>
+                    <span style={{width:8,height:8,borderRadius:'50%',background:c.color,display:'inline-block',flexShrink:0}}/>
+                    {c.name}
+                  </span>
+                </td>
+                {members.map((mb,mi)=>{
+                  const linked=isLinked(c.id,mb.id);
+                  const amt=payments?.[currentYM]?.[c.id]?.[mb.id]?.amount||'';
+                  const note=payments?.[currentYM]?.[c.id]?.[mb.id]?.note||'';
+                  return(
+                    <td key={mb.id} style={{...td,background:linked?'transparent':'#161624'}}>
+                      {!linked
+                        ?<div style={{textAlign:'center',color:'#3a3a5a',fontSize:12}}>—</div>
+                        :fieldMode==='amount'
+                          ?<AmountInput
+                              value={amt}
+                              onChange={v=>setAmount(c.id,mb.id,v)}
+                              ref={el=>{ refs.current[`${ci}_${mi}`]=el; }}
+                              onKeyDown={e=>onKeyDown(e,ci,mi)}
+                              style={{minWidth:88}}
+                            />
+                          :<input
+                              className="note-input"
+                              type="text" placeholder="メモ" value={note}
+                              onChange={e=>setNote(c.id,mb.id,e.target.value)}
+                              ref={el=>{ refs.current[`${ci}_${mi}`]=el; }}
+                              onKeyDown={e=>onKeyDown(e,ci,mi)}
+                              style={{minWidth:88}}
+                            />
+                      }
+                    </td>
+                  );
+                })}
+                <td style={{...td,color:c.color,fontWeight:800}}>¥{fmtNum(totals.perCard[ci])}</td>
+              </tr>
+            ))}
+            <tr style={{borderTop:'2px solid #3a3a5a'}}>
+              <td style={{...tdL,color:'#e2e8f0',fontWeight:800}}>合計</td>
+              {members.map((mb,mi)=>(
+                <td key={mb.id} style={{...td,color:'#94a3b8',fontWeight:700}}>¥{fmtNum(totals.perMember[mi])}</td>
+              ))}
+              <td style={{...td,color:'#c084fc',fontWeight:900}}>¥{fmtNum(totals.grand)}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -1080,7 +1233,7 @@ function Settings({cards,setCards,members,setMembers,cardMembers,setCardMembers,
       });
     });
     const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+    const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url; a.download=`CardManager_${new Date().toISOString().slice(0,10)}.csv`;
@@ -1193,6 +1346,7 @@ function TrendTable({payments, cards, members, loans, currentYM}){
   const defaultStart = useMemo(()=>{ let ym=currentYM; for(let i=0;i<11;i++) ym=prevMonth(ym); return ym; },[currentYM]);
   const [startYM, setStartYM] = useState(defaultStart);
   const [endYM,   setEndYM  ] = useState(currentYM);
+  const [groupBy, setGroupBy] = useState('card'); // 'card' | 'member'
 
   // 表示する月リスト（startYM〜endYM）
   const ymList = useMemo(()=>{
@@ -1202,15 +1356,26 @@ function TrendTable({payments, cards, members, loans, currentYM}){
     return list;
   },[startYM,endYM]);
 
-  // カード別月別合計
+  // カード別 or メンバー別 月別合計
   const data = useMemo(()=>{
+    if(groupBy==='member'){
+      return members.map((m,i)=>({
+        id:m.id, name:m.name, color:COLORS[i%COLORS.length],
+        monthly: ymList.map(ym=>{
+          let s=0;
+          const monthData=payments?.[ym];
+          if(monthData) cards.forEach(c=>{ s+=Number(monthData[c.id]?.[m.id]?.amount||0); });
+          return s;
+        }),
+      }));
+    }
     return cards.map(c=>({
       id:c.id, name:c.name, color:c.color,
       monthly: ymList.map(ym=>cardTotal(payments,ym,c.id,members)),
     }));
-  },[cards,members,payments,ymList]);
+  },[cards,members,payments,ymList,groupBy]);
 
-  // ローン行
+  // ローン行（カード別表示のときのみ）
   const loanRow = useMemo(()=>({
     name:'ローン合計', color:'#4ade80',
     monthly: ymList.map(ym=>getLoanMonthly(loans,ym)+getLoanBonusForYM(loans,ym)),
@@ -1219,8 +1384,8 @@ function TrendTable({payments, cards, members, loans, currentYM}){
   // 合計行
   const totalRow = useMemo(()=>({
     name:'合計', color:'#818cf8',
-    monthly: ymList.map((_,i)=>data.reduce((s,c)=>s+c.monthly[i],0)+(loans.length?loanRow.monthly[i]:0)),
-  }),[data,loanRow,ymList,loans]);
+    monthly: ymList.map((_,i)=>data.reduce((s,c)=>s+c.monthly[i],0)+(groupBy==='card'&&loans.length?loanRow.monthly[i]:0)),
+  }),[data,loanRow,ymList,loans,groupBy]);
 
   // 列ごとの最大値（ヒートマップ用）
   const colMax = useMemo(()=>ymList.map((_,i)=>
@@ -1238,13 +1403,21 @@ function TrendTable({payments, cards, members, loans, currentYM}){
     return `rgba(129,140,248,${(ratio*0.35).toFixed(2)})`;
   }
 
-  const rows = [...data, ...(loans.length?[loanRow]:[]), totalRow];
+  const rows = groupBy==='card' ? [...data, ...(loans.length?[loanRow]:[]), totalRow] : [...data, totalRow];
+  const groupLabel = groupBy==='card' ? 'カード' : 'メンバー';
+  const groupToggle = (
+    <div style={{display:'flex',gap:4,paddingBottom:2}}>
+      <button className={`btn btn-sm ${groupBy==='card'?'btn-primary':'btn-ghost'}`} onClick={()=>setGroupBy('card')}>カード別</button>
+      <button className={`btn btn-sm ${groupBy==='member'?'btn-primary':'btn-ghost'}`} onClick={()=>setGroupBy('member')}>メンバー別</button>
+    </div>
+  );
 
   if(ymList.length===0) return(
     <div>
       <div style={{marginBottom:12}}>
-        <div style={{fontSize:14,fontWeight:700,color:'#94a3b8',marginBottom:10}}>カード別使用推移</div>
+        <div style={{fontSize:14,fontWeight:700,color:'#94a3b8',marginBottom:10}}>{groupLabel}別使用推移</div>
         <div style={{display:'flex',flexWrap:'wrap',gap:10,alignItems:'flex-end'}}>
+          {groupToggle}
           <div style={{display:'flex',flexDirection:'column',gap:3}}>
             <span style={{fontSize:11,color:'#64748b',fontWeight:600}}>開始年月</span>
             <MonthPicker value={startYM} onChange={v=>{ if(v) setStartYM(v); }}/>
@@ -1263,8 +1436,9 @@ function TrendTable({payments, cards, members, loans, currentYM}){
   return(
     <div>
       <div style={{marginBottom:12}}>
-        <div style={{fontSize:14,fontWeight:700,color:'#94a3b8',marginBottom:10}}>カード別使用推移</div>
+        <div style={{fontSize:14,fontWeight:700,color:'#94a3b8',marginBottom:10}}>{groupLabel}別使用推移</div>
         <div style={{display:'flex',flexWrap:'wrap',gap:10,alignItems:'flex-end'}}>
+          {groupToggle}
           <div style={{display:'flex',flexDirection:'column',gap:3}}>
             <span style={{fontSize:11,color:'#64748b',fontWeight:600}}>開始年月</span>
             <MonthPicker value={startYM} onChange={v=>{ if(v) setStartYM(v); }}/>
@@ -1289,7 +1463,7 @@ function TrendTable({payments, cards, members, loans, currentYM}){
         <table style={{width:'100%',borderCollapse:'collapse',minWidth:500}}>
           <thead>
             <tr>
-              <th style={thL}>カード</th>
+              <th style={thL}>{groupLabel}</th>
               {ymList.map(ym=>{
                 const [y,m]=ym.split('-').map(Number);
                 const isCurrent = ym===currentYM;
